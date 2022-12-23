@@ -126,7 +126,6 @@ while True:
         slide_to_pos(rect, pos, slide_dir, tile_rects)
         slide_dir = ''
     draw_tiles(tile_rects, empty_tile)
-
     pygame.display.update()
 
     if win_check():
