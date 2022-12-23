@@ -1,148 +1,135 @@
 import pygame, sys, random
 from pygame.locals import *
+import time
+
 BOARDWIDTH = 4
 BOARDHEIGHT = 4
-TILESIZE = 80
+TILE_SIZE = 80
+TILE_SPACE = 2
+START_POS = (156, 76)
+
 WINDOWWIDTH = 640
 WINDOWHEIGHT = 480
 FPS = 30
-BLANK = None
-BLACK =         (  0,   0,   0)
-WHITE =         (255, 255, 255)
-BRIGHTBLUE =    (  0,  50, 255)
-DARKTURQUOISE = (  3,  54,  73)
-GREEN =         (  0, 204,   0)
-BGCOLOR = DARKTURQUOISE
-TILECOLOR = GREEN
-TEXTCOLOR = WHITE
-BORDERCOLOR = BRIGHTBLUE
-BASICFONTSIZE = 20
-
-BUTTONCOLOR = WHITE
-BUTTONTEXTCOLOR = BLACK
-MESSAGECOLOR = WHITE
-
-XMARGIN = int((WINDOWWIDTH - (TILESIZE * BOARDWIDTH + (BOARDWIDTH - 1))) / 2)
-YMARGIN = int((WINDOWHEIGHT - (TILESIZE * BOARDHEIGHT + (BOARDHEIGHT - 1))) / 2)
-
-UP = 'up'
-DOWN = 'down'
-LEFT = 'left'
-RIGHT = 'right'
-
-def main():
-    global FPSCLOCK, DISPLAYSURF, BASICFONT, RESET_SURF, RESET_RECT, NEW_SURF, NEW_RECT, SOLVE_SURF, SOLVE_RECT
-
-    pygame.init()
-    FPSCLOCK = pygame.time.Clock()
-    DISPLAYSURF = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
-    pygame.display.set_caption('Slide Puzzle')
-    BASICFONT = pygame.font.Font('freesansbold.ttf', BASICFONTSIZE)
-    RESET_SURF, RESET_RECT = makeText('Reset', TEXTCOLOR, TILECOLOR, WINDOWWIDTH - 120, WINDOWHEIGHT - 90)
-    NEW_SURF, NEW_RECT = makeText('New Game', TEXTCOLOR, TILECOLOR, WINDOWWIDTH - 120, WINDOWHEIGHT - 60)
-    SOLVE_SURF, SOLVE_RECT = makeText('Solve', TEXTCOLOR, TILECOLOR, WINDOWWIDTH - 120, WINDOWHEIGHT - 30)
-
-    mainBoard, solutionSeq = generateNewPuzzle(80)
-    SOLVEDBOARD = getStartingBoard()
-    allMoves = []
-
-    while True:
-        slideTo = None
-        msg = 'Click tile or press arrow keys to slide.'
-        if mainBoard == SOLVEDBOARD:
-            msg = 'Solved!'
-            drawBoard(mainBoard, msg)
-            checkForQuit()
-        for event in pygame.event.get():
-            if event.type == MOUSEBUTTONUP:
-                spotx, spoty = getSpotClicked(mainBoard, event.pos[0], event.pos[1])
-
-                if (spotx, spoty) == (None, None):
-
-                    if RESET_RECT.collidepoint(event.pos):
-                        resetAnimation(mainBoard, allMoves)
-                        allMoves = []
-                    elif NEW_RECT.collidepoint(event.pos):
-                        mainBoard, solutionSeq = generateNewPuzzle(80)
-                        allMoves = []
-                    elif SOLVE_RECT.collidepoint(event.pos):
-                        resetAnimation(mainBoard, solutionSeq + allMoves)
-                        allMoves = []
-                else:
 
 
-                    blankx, blanky = getBlankPosition(mainBoard)
-                    if spotx == blankx + 1 and spoty == blanky:
-                        slideTo = LEFT
-                    elif spotx == blankx - 1 and spoty == blanky:
-                        slideTo = RIGHT
-                    elif spotx == blankx and spoty == blanky + 1:
-                        slideTo = UP
-                    elif spotx == blankx and spoty == blanky - 1:
-                        slideTo = DOWN
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
 
-            elif event.type == KEYUP:
 
-                if event.key in (K_LEFT, K_a) and isValidMove(mainBoard, LEFT):
-                    slideTo = LEFT
-                elif event.key in (K_RIGHT, K_d) and isValidMove(mainBoard, RIGHT):
-                    slideTo = RIGHT
-                elif event.key in (K_UP, K_w) and isValidMove(mainBoard, UP):
-                    slideTo = UP
-                elif event.key in (K_DOWN, K_s) and isValidMove(mainBoard, DOWN):
-                    slideTo = DOWN
 
-        if slideTo:
-            slideAnimation(mainBoard, slideTo, 'Click tile or press arrow keys to slide.', 8)
-            makeMove(mainBoard, slideTo)
-            allMoves.append(slideTo)
-            pygame.display.update()
-            FPSCLOCK.tick(FPS)
 
-        def terminate():
+def get_tile_rects(start_pos):
+    tile_rects = []
+    empty_tile = (random.randint(0, 3), random.randint(0, 3))
+    random_letters = [chr(i) for i in range(65, 65 + 15)]
+    random.shuffle(random_letters)
+    n = 0
+    for i in range(4):
+        tile_rects.append([])
+        for j in range(4):
+            rect = pygame.Rect(
+                (start_pos[0] + i * (TILE_SIZE + TILE_SPACE),
+                 start_pos[1] + j * (TILE_SIZE + TILE_SPACE),
+                 TILE_SIZE, TILE_SIZE))
+            if (i, j) == empty_tile:
+                tile_rects[i].append([rect, ''])
+                continue
+            else:
+                tile_rects[i].append([rect, random_letters[n]])
+            n += 1
+    return tile_rects, empty_tile
+
+
+def draw_tiles(tile_rects, empty_tile):
+    global text_font, screen
+    for i in range(4):
+        for j in range(4):
+            if (i, j) == empty_tile:
+                pygame.draw.rect(screen, WHITE, tile_rects[i][j][0])
+            else:
+                pygame.draw.rect(screen, GREEN, tile_rects[i][j][0])
+                txt_suf = text_font.render(tile_rects[i][j][1], True, BLACK)
+                screen.blit(txt_suf, tile_rects[i][j][0])
+
+
+def get_clicked_rect(x, y, tile_rects, empty_tile):
+    for i in range(4):
+        for j in range(4):
+            if tile_rects[i][j][0].collidepoint(x, y) and (i, j) != empty_tile:
+                return (tile_rects[i][j][0], (i, j))
+    return (None, None)
+
+
+def is_valid_pos(pos):
+    return 0 <= pos[0] <= 3 and 0 <= pos[1] <= 3
+
+
+def check_move(tile_rects, pos):
+    return tile_rects[pos[0]][pos[1]][1] == ''
+
+
+def slide_to_pos(rect, pos, slide_dir, tile_rects):
+    global empty_tile
+    tile_rects[pos[0]][pos[1]][1], tile_rects[empty_tile[0]][empty_tile[1]][1] = \
+        tile_rects[empty_tile[0]][empty_tile[1]][1], tile_rects[pos[0]][pos[1]][1]
+
+    empty_tile = pos
+
+
+def win_check():
+    global win_rects, tile_rects
+    for i in range(4):
+        for j in range(4):
+            if tile_rects[j][i][1] != win_rects[i][j]:
+                return False
+    return True
+
+
+pygame.init()
+screen = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
+pygame.display.set_caption('Slide Puzzle')
+screen.fill(WHITE)
+game_clock = pygame.time.Clock()
+text_font = pygame.font.SysFont('arial', 80)
+tile_rects, empty_tile = get_tile_rects(START_POS)
+draw_tiles(tile_rects, empty_tile)
+slide_dir = ''
+win_rects = [[chr(j) for j in range(65 + i * 4, 65 + i * 4 + 4)] for i in range(4)]
+win_rects[-1][-1] = ''
+
+while True:
+    for event in pygame.event.get():
+        if event.type == QUIT:
             pygame.quit()
             sys.exit()
 
-        def checkForQuit():
-            for event in pygame.event.get(QUIT):
-                terminate()
-            for event in pygame.event.get(KEYUP):
-                if event.key == K_ESCAPE:
-                    terminate()
-                pygame.event.post(event)
+        elif event.type == MOUSEBUTTONUP:
+            x, y = event.pos[0], event.pos[1]
+            (rect, pos) = get_clicked_rect(x, y, tile_rects, empty_tile)
+            if pos:
+                west_pos = pos[0] - 1, pos[1]
+                east_pos = pos[0] + 1, pos[1]
+                north_pos = pos[0], pos[1] - 1
+                south_pos = pos[0], pos[1] + 1
+                if is_valid_pos(west_pos) and check_move(tile_rects, west_pos):
+                    slide_dir = 'W'
+                elif is_valid_pos(east_pos) and check_move(tile_rects, east_pos):
+                    slide_dir = 'E'
+                elif is_valid_pos(north_pos) and check_move(tile_rects, north_pos):
+                    slide_dir = 'N'
+                elif is_valid_pos(south_pos) and check_move(tile_rects, south_pos):
+                    slide_dir = 'S'
 
-        def getStartingBoard():
-            counter = 1
-            board = []
-            for x in range(BOARDWIDTH):
-                column = []
-                for y in range(BOARDHEIGHT):
-                    column.append(counter)
-                    counter += BOARDWIDTH
-                board.append(column)
-                counter -= BOARDWIDTH * (BOARDHEIGHT - 1) + BOARDWIDTH - 1
+    if slide_dir:
+        slide_to_pos(rect, pos, slide_dir, tile_rects)
+        slide_dir = ''
 
-            board[BOARDWIDTH - 1][BOARDHEIGHT - 1] = BLANK
-            return board
+    draw_tiles(tile_rects, empty_tile)
 
-        def getBlankPosition(board):
-            for x in range(BOARDWIDTH):
-                for y in range(BOARDHEIGHT):
-                    if board[x][y] == BLANK:
-                        return (x, y)
+    pygame.display.update()
 
-
-    def makeMove(board, move):
-        blankx, blanky = getBlankPosition(board)
-
-        if move == UP:
-            board[blankx][blanky], board[blankx][blanky + 1] = board[blankx][blanky + 1], board[blankx][blanky]
-        elif move == DOWN:
-            board[blankx][blanky], board[blankx][blanky - 1] = board[blankx][blanky - 1], board[blankx][blanky]
-        elif move == LEFT:
-            board[blankx][blanky], board[blankx + 1][blanky] = board[blankx + 1][blanky], board[blankx][blanky]
-        elif move == RIGHT:
-            board[blankx][blanky], board[blankx - 1][blanky] = board[blankx - 1][blanky], board[blankx][blanky]
-
-
-
+    if win_check():
+        break
+    game_clock.tick(FPS)
